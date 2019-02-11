@@ -245,6 +245,15 @@ void drawMagnifier()
         magRect.y = mY + 20;
     // draw the magnifier
     SDL_RenderCopy(renderer, magTex, NULL, &magRect);
+    // draw cross lines in middle
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderDrawLine(renderer, magRect.x + (MAG_WIDTH / 5 * 2), magRect.y + (MAG_HEIGHT / 2), magRect.x + (MAG_WIDTH / 5 * 3), magRect.y + (MAG_HEIGHT / 2));
+    SDL_RenderDrawLine(renderer, magRect.x + (MAG_WIDTH / 2), magRect.y + (MAG_HEIGHT / 5 * 2), magRect.x + (MAG_WIDTH / 2), magRect.y + (MAG_HEIGHT / 5 * 3));
+    magRect.x = magRect.x + 2;
+    magRect.y = magRect.y + 2;
+    magRect.w = magRect.w - 4;
+    magRect.h = magRect.h - 4;
+    SDL_RenderDrawRect(renderer, &magRect);
     SDL_DestroyTexture(magTex);
 }
 

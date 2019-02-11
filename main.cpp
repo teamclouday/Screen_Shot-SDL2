@@ -7,30 +7,31 @@
 #include <stdio.h>
 #include <iostream>
 
+// set window properties
 #define WINDOW_TITLE "ScreenShot"
 #define WINDOW_WIDTH  800
 #define WINDOW_HEIGHT 600
-
+// set mouse magnification width and height
 #define RECT_SELECT_WIDTH  40
 #define RECT_SELECT_HEIGHT 40
-
+// set magifier width and height
 #define MAG_WIDTH  100
 #define MAG_HEIGHT 100
-
+// global variables
 SDL_Texture *image = nullptr;
 SDL_Window *window = nullptr;
 SDL_Renderer *renderer = nullptr;
 SDL_DisplayMode DM;
 std::vector<int> mousePosition(2, 0);
 std::vector<int> selectPositions(4, 0);
-
+// state info for window
 enum CurrentState
 {
     DEFAULT,
     SELECTING,
     SAVING
 };
-
+// state info for mouse
 enum MouseState
 {
     MOUSE_DEFAULT,
@@ -39,7 +40,7 @@ enum MouseState
     MOUSE_UP,
     MOUSE_DONE
 };
-
+// functions header
 void switchRenderer(CurrentState *state, MouseState *mstate);
 void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate);
 bool loadImage(const std::string name);
@@ -59,7 +60,7 @@ int main(int argc, char **argv)
     }
 
     // Init image
-    int imageFlags = IMG_INIT_PNG | IMG_INIT_JPG;
+    int imageFlags = IMG_INIT_PNG;
     if(!(!IMG_Init(imageFlags) ^ imageFlags))
     {
         printf("Failed to init IMG!\nIMG_ERROR: %s\n", IMG_GetError());
@@ -91,7 +92,7 @@ int main(int argc, char **argv)
         return -3;
     }
 
-    // load images
+    // load cover image
     if(!loadImage("cover.png"))
     {
         IMG_Quit();
@@ -99,8 +100,9 @@ int main(int argc, char **argv)
         return -4;
     }
 
+    // get display mode
     SDL_GetCurrentDisplayMode(0, &DM);
-
+    // set default values of the states
     unsigned char quit = 0;
     CurrentState state = DEFAULT;
     MouseState mstate = MOUSE_DEFAULT;
@@ -110,15 +112,16 @@ int main(int argc, char **argv)
         switchRenderer(&state, &mstate);
         SDL_Delay(20);
     }
-
     SDL_DestroyWindow(window);
     IMG_Quit();
     SDL_Quit();
     return 0;
 }
 
+// function that sets renderer according to the state info
 void switchRenderer(CurrentState *state, MouseState *mstate)
 {
+    // set default background color: black
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     switch(*state)
@@ -128,6 +131,7 @@ void switchRenderer(CurrentState *state, MouseState *mstate)
             break;
         case SAVING:
             saveImage();
+            // after saving, automatically change to DEFAULT state
             *state = DEFAULT;
             break;
         case SELECTING:
@@ -136,15 +140,18 @@ void switchRenderer(CurrentState *state, MouseState *mstate)
             drawMagnifier();
             break;
     }
+    // draw on screen
     SDL_RenderPresent(renderer);
 }
 
+// function that draw the selected area with rectangle
 void drawSelectRect(MouseState *mstate)
 {
     if(*mstate == MOUSE_DOWN)
     {
         selectPositions[0] = mousePosition[0];
         selectPositions[1] = mousePosition[1];
+        // once mouse is done, enter selecting state
         *mstate = MOUSE_SELECTING;
     }
     else if(*mstate == MOUSE_UP)
@@ -163,6 +170,7 @@ void drawSelectRect(MouseState *mstate)
             h = -h;
             selectPositions[1] = mousePosition[1];
         }
+        // save x, y, w, h in selectPositions
         selectPositions[2] = w;
         selectPositions[3] = h;
         *mstate = MOUSE_DONE;
@@ -192,11 +200,13 @@ void drawSelectRect(MouseState *mstate)
             rect.y = mousePosition[1];
             rect.h = h;
         }
+        // draw the rectangle (white) during selecting
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderDrawRect(renderer, &rect);
     }
     else if(*mstate == MOUSE_DONE)
     {
+        // once done, draw the selected rect (white) on screen
         SDL_Rect rect;
         rect.x = selectPositions[0];
         rect.y = selectPositions[1];
@@ -207,11 +217,13 @@ void drawSelectRect(MouseState *mstate)
     }
 }
 
+// draw the magnifier near the mouse
 void drawMagnifier()
 {
+    // get the top left (x, y) of the mouse area
     int x = mousePosition[0] - (int)(RECT_SELECT_WIDTH / 2);
     int y = mousePosition[1] - (int)(RECT_SELECT_HEIGHT / 2);
-
+    // get mouse area bitmap surface
     SDL_Surface *magSurf = loadSurfaceFromScreen(x, y, RECT_SELECT_WIDTH, RECT_SELECT_HEIGHT);
     SDL_Texture *magTex = SDL_CreateTextureFromSurface(renderer, magSurf);
     SDL_FreeSurface(magSurf);
@@ -231,19 +243,20 @@ void drawMagnifier()
         magRect.y = mY - 20 - MAG_HEIGHT;
     else
         magRect.y = mY + 20;
-
+    // draw the magnifier
     SDL_RenderCopy(renderer, magTex, NULL, &magRect);
     SDL_DestroyTexture(magTex);
 }
 
+// function that saves image after selecting
 void saveImage()
 {
-    
+    // load image surface
     SDL_Surface *surface = loadSurfaceFromScreen(selectPositions[0],
                                                  selectPositions[1],
                                                  selectPositions[2],
                                                  selectPositions[3]);
-
+    // save image
     bool done = false;
     while(!done)
     {
@@ -256,33 +269,34 @@ void saveImage()
         else
             done = true;
     }
+    // create texture for displaying
     SDL_Texture *imageTex = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
-
     SDL_Delay(50);
+    // set window property for displaying
     SDL_SetWindowOpacity(window, 1.0f);
     SDL_SetWindowSize(window, selectPositions[2], selectPositions[3]);
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     SDL_SetWindowBordered(window, SDL_TRUE);
     SDL_SetWindowTitle(window, "Hit any key to continue...");
     SDL_ShowWindow(window);
-
     // show image on screen
     SDL_RenderCopy(renderer, imageTex, NULL, NULL);
     SDL_RenderPresent(renderer);
+    // keep displaying until any key is pressed
     SDL_Event e;
     while(e.type != SDL_KEYDOWN)
     {
         SDL_PollEvent(&e);
         SDL_Delay(50);
     }
-
-    // restore window
+    // restore window property
     SDL_DestroyTexture(imageTex);
     SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
     SDL_SetWindowTitle(window, WINDOW_TITLE);
 }
 
+// function that handle keyboard and mouse events
 void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
 {
     SDL_Event e;
@@ -301,6 +315,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
                     *quit = 1;
                     break;
                 case SDLK_s:
+                // if s is pressed on DEFAULT state, change to SELECTING state
                     if(*state == DEFAULT)
                     {
                         SDL_SetWindowOpacity(window, 0.3f);
@@ -311,6 +326,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
                     }
                     break;
                 case SDLK_r:
+                // if r is pressed, change to DEFAULT state
                     if(*state != DEFAULT)
                     {
                         SDL_SetWindowOpacity(window, 1.0f);
@@ -322,6 +338,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
                     }
                     break;
                 case SDLK_q:
+                // if q is pressed (and not in DEFAULT state), change to SAVING state
                     if(*state != DEFAULT)
                     {
                         SDL_HideWindow(window);
@@ -331,7 +348,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
                     break;
             }
         }
-        
+        // in SELECTING state, handle mouse down and up events
         if(*state == SELECTING)
         {
             if(e.type == SDL_MOUSEBUTTONDOWN)
@@ -347,6 +364,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
     }   
 }
 
+// function that load image from local storage
 bool loadImage(const std::string name)
 {
     SDL_Surface *loadIMG = IMG_Load(("./Images/" + name).c_str());
@@ -365,6 +383,7 @@ bool loadImage(const std::string name)
     return true;
 }
 
+// function that update current mouse position
 void updateMousePos()
 {
     int x, y;
@@ -373,6 +392,7 @@ void updateMousePos()
     mousePosition[1] = y;
 }
 
+// function that load surface from current screen
 // This function is inspired by GarlandlX's answer on:
 // https://www.gamedev.net/forums/topic/315178-hbitmap-to-sdl_surface/
 SDL_Surface *loadSurfaceFromScreen(int x, int y, int w, int h)

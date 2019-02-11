@@ -1,0 +1,50 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build&run",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-O2",
+                "-std=c++11",
+                "-Wall",
+                "-o",
+                "run.exe",
+                "main.cpp",
+                "-lgdi32",
+                "-lmingw32",
+                "-lSDL2main",
+                "-lSDL2",
+                "-lSDL2_image",
+                "-mconsole",
+                "&&",
+                "./run"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "debug",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-g",
+                "-std=c++11",
+                "-Wall",
+                "-o",
+                "run.exe",
+                "main.cpp",
+                "-lgdi32",
+                "-lmingw32",
+                "-lSDL2main",
+                "-lSDL2",
+                "-lSDL2_image",
+                "-mconsole"
+            ],
+            "group": "test"
+        }
+    ]
+}

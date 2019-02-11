@@ -1,0 +1,4 @@
+# ignore test bmp files
+*.bmp
+# ignore vscode settings
+.vscode/settings.json

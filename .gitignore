@@ -4,3 +4,7 @@
 .vscode/settings.json
 # ignore executable file
 run.exe
+# ignore res file
+*.res
+# ignore obj file
+*.o

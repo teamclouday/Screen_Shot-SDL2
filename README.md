@@ -11,8 +11,14 @@ This is an windows application built with SDL2 which can capture specific screen
 ------
 
 **How to compile**  
+1. First compile icon and obj file  
 ```bash
-g++ -O2 -std=c++11 -o run.exe main.cpp -lgdi32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -mconsole
+windres myIcon.rc -O coff -o myIcon.res
+g++ -O2 -std=c++11 -c main.cpp -lgdi32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -mconsole
+```
+2. Next compile them into one program  
+```bash
+g++ -O2 -std=c++11 -o run.exe main.o myIcon.res -lgdi32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -mconsole
 ```
 
 ------

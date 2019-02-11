@@ -11,10 +11,18 @@
 #define WINDOW_WIDTH  800
 #define WINDOW_HEIGHT 600
 
+#define RECT_SELECT_WIDTH  40
+#define RECT_SELECT_HEIGHT 40
+
+#define MAG_WIDTH  100
+#define MAG_HEIGHT 100
+
 SDL_Texture *image = nullptr;
 SDL_Window *window = nullptr;
 SDL_Renderer *renderer = nullptr;
-std::vector<int> windowPositions(4, 0);
+SDL_DisplayMode DM;
+std::vector<int> mousePosition(2, 0);
+std::vector<int> selectPositions(4, 0);
 
 enum CurrentState
 {
@@ -23,12 +31,23 @@ enum CurrentState
     SAVING
 };
 
-void switchRenderer(CurrentState *state);
-void pollEvents(unsigned char *quit, CurrentState *state);
+enum MouseState
+{
+    MOUSE_DEFAULT,
+    MOUSE_DOWN,
+    MOUSE_SELECTING,
+    MOUSE_UP,
+    MOUSE_DONE
+};
+
+void switchRenderer(CurrentState *state, MouseState *mstate);
+void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate);
 bool loadImage(const std::string name);
+void drawMagnifier();
+void drawSelectRect(MouseState *mstate);
 void saveImage();
-void updateWindowPos();
-SDL_Surface *loadSurfaceFromBITMAP(BITMAP *bmp);
+void updateMousePos();
+SDL_Surface *loadSurfaceFromScreen(int x, int y, int w, int h);
 
 int main(int argc, char **argv)
 {
@@ -49,11 +68,11 @@ int main(int argc, char **argv)
 
     // create SDLwindow
     window = SDL_CreateWindow(WINDOW_TITLE,
-                                          SDL_WINDOWPOS_CENTERED,
-                                          SDL_WINDOWPOS_CENTERED,
-                                          WINDOW_WIDTH,
-                                          WINDOW_HEIGHT,
-                                          SDL_WINDOW_SHOWN);
+                              SDL_WINDOWPOS_CENTERED,
+                              SDL_WINDOWPOS_CENTERED,
+                              WINDOW_WIDTH,
+                              WINDOW_HEIGHT,
+                              SDL_WINDOW_SHOWN);
     if(!window)
     {
         printf("Failed to create SDL_Window!\nSDL_ERROR: %s\n", SDL_GetError());
@@ -80,13 +99,16 @@ int main(int argc, char **argv)
         return -4;
     }
 
+    SDL_GetCurrentDisplayMode(0, &DM);
+
     unsigned char quit = 0;
     CurrentState state = DEFAULT;
+    MouseState mstate = MOUSE_DEFAULT;
     while(!quit)
     {
-        pollEvents(&quit, &state);
-        switchRenderer(&state);
-        SDL_Delay(50);
+        pollEvents(&quit, &state, &mstate);
+        switchRenderer(&state, &mstate);
+        SDL_Delay(20);
     }
 
     SDL_DestroyWindow(window);
@@ -95,8 +117,9 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void switchRenderer(CurrentState *state)
+void switchRenderer(CurrentState *state, MouseState *mstate)
 {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     switch(*state)
     {
@@ -108,32 +131,118 @@ void switchRenderer(CurrentState *state)
             *state = DEFAULT;
             break;
         case SELECTING:
+            updateMousePos();
+            drawSelectRect(mstate);
+            drawMagnifier();
             break;
     }
     SDL_RenderPresent(renderer);
 }
 
+void drawSelectRect(MouseState *mstate)
+{
+    if(*mstate == MOUSE_DOWN)
+    {
+        selectPositions[0] = mousePosition[0];
+        selectPositions[1] = mousePosition[1];
+        *mstate = MOUSE_SELECTING;
+    }
+    else if(*mstate == MOUSE_UP)
+    {
+        // get width and height
+        int w = mousePosition[0] - selectPositions[0];
+        int h = mousePosition[1] - selectPositions[1];
+        // get x and y
+        if(w < 0)
+        {
+            w = -w;
+            selectPositions[0] = mousePosition[0];
+        }
+        if(h < 0)
+        {
+            h = -h;
+            selectPositions[1] = mousePosition[1];
+        }
+        selectPositions[2] = w;
+        selectPositions[3] = h;
+        *mstate = MOUSE_DONE;
+    }
+    else if(*mstate == MOUSE_SELECTING)
+    {
+        SDL_Rect rect;
+        int w = selectPositions[0] - mousePosition[0];
+        int h = selectPositions[1] - mousePosition[1];
+        if(w < 0)
+        {
+            rect.x = selectPositions[0];
+            rect.w = -w;
+        }
+        else
+        {
+            rect.x = mousePosition[0];
+            rect.w = w;
+        }
+        if(h < 0)
+        {
+            rect.y = selectPositions[1];
+            rect.h = -h;
+        }
+        else
+        {
+            rect.y = mousePosition[1];
+            rect.h = h;
+        }
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawRect(renderer, &rect);
+    }
+    else if(*mstate == MOUSE_DONE)
+    {
+        SDL_Rect rect;
+        rect.x = selectPositions[0];
+        rect.y = selectPositions[1];
+        rect.w = selectPositions[2];
+        rect.h = selectPositions[3];
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawRect(renderer, &rect);
+    }
+}
+
+void drawMagnifier()
+{
+    int x = mousePosition[0] - (int)(RECT_SELECT_WIDTH / 2);
+    int y = mousePosition[1] - (int)(RECT_SELECT_HEIGHT / 2);
+
+    SDL_Surface *magSurf = loadSurfaceFromScreen(x, y, RECT_SELECT_WIDTH, RECT_SELECT_HEIGHT);
+    SDL_Texture *magTex = SDL_CreateTextureFromSurface(renderer, magSurf);
+    SDL_FreeSurface(magSurf);
+
+    int mX = mousePosition[0];
+    int mY = mousePosition[1];
+    int sW = DM.w;
+    int sH = DM.h;
+    SDL_Rect magRect;
+    magRect.w = MAG_WIDTH;
+    magRect.h = MAG_HEIGHT;
+    if((mX + 20 + MAG_WIDTH) > sW)
+        magRect.x = mX - 20 -  MAG_WIDTH;
+    else
+        magRect.x = mX + 20;
+    if((mY + 20 + MAG_HEIGHT) > sH)
+        magRect.y = mY - 20 - MAG_HEIGHT;
+    else
+        magRect.y = mY + 20;
+
+    SDL_RenderCopy(renderer, magTex, NULL, &magRect);
+    SDL_DestroyTexture(magTex);
+}
+
 void saveImage()
 {
-    HDC dcScreen = GetDC(NULL);
-    HDC dcTarget = CreateCompatibleDC(dcScreen);
-    // create bitmap info
-    BITMAPINFO bi;
-    memset(&bi.bmiHeader, 0, sizeof(BITMAPINFOHEADER));
-    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth = windowPositions[2];
-    bi.bmiHeader.biHeight = -windowPositions[3];
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
-    VOID *pvBits;
-    HBITMAP bmpTarget = CreateDIBSection(dcScreen, &bi, DIB_RGB_COLORS, &pvBits, NULL, 0);
-    SelectObject(dcTarget, bmpTarget);
-    BitBlt(dcTarget, 0, 0, windowPositions[2], windowPositions[3], dcScreen, windowPositions[0], windowPositions[1], SRCCOPY);
-
-    BITMAP bitmap;
-    GetObject(bmpTarget, sizeof(BITMAP), &bitmap);
-    SDL_Surface *surface = loadSurfaceFromBITMAP(&bitmap);
+    
+    SDL_Surface *surface = loadSurfaceFromScreen(selectPositions[0],
+                                                 selectPositions[1],
+                                                 selectPositions[2],
+                                                 selectPositions[3]);
 
     bool done = false;
     while(!done)
@@ -147,19 +256,34 @@ void saveImage()
         else
             done = true;
     }
-
+    SDL_Texture *imageTex = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
 
-    DeleteDC(dcTarget);
-    ReleaseDC(NULL, dcScreen);
-    SDL_Delay(100);
-    SDL_ShowWindow(window);
-    SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
-    SDL_SetWindowResizable(window, SDL_FALSE);
+    SDL_Delay(50);
     SDL_SetWindowOpacity(window, 1.0f);
+    SDL_SetWindowSize(window, selectPositions[2], selectPositions[3]);
+    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    SDL_SetWindowBordered(window, SDL_TRUE);
+    SDL_SetWindowTitle(window, "Hit any key to continue...");
+    SDL_ShowWindow(window);
+
+    // show image on screen
+    SDL_RenderCopy(renderer, imageTex, NULL, NULL);
+    SDL_RenderPresent(renderer);
+    SDL_Event e;
+    while(e.type != SDL_KEYDOWN)
+    {
+        SDL_PollEvent(&e);
+        SDL_Delay(50);
+    }
+
+    // restore window
+    SDL_DestroyTexture(imageTex);
+    SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
+    SDL_SetWindowTitle(window, WINDOW_TITLE);
 }
 
-void pollEvents(unsigned char *quit, CurrentState *state)
+void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
 {
     SDL_Event e;
     while(SDL_PollEvent(&e))
@@ -177,34 +301,50 @@ void pollEvents(unsigned char *quit, CurrentState *state)
                     *quit = 1;
                     break;
                 case SDLK_s:
-                    if(*state != SAVING)
+                    if(*state == DEFAULT)
                     {
-                        SDL_SetWindowResizable(window, SDL_TRUE);
-                        SDL_SetWindowOpacity(window, 0.2f);
+                        SDL_SetWindowOpacity(window, 0.3f);
+                        SDL_SetWindowBordered(window, SDL_FALSE);
+                        SDL_SetWindowSize(window, DM.w, DM.h);
+                        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
                         *state = SELECTING;
                     }
                     break;
                 case SDLK_r:
                     if(*state != DEFAULT)
                     {
-                        SDL_ShowWindow(window);
-                        SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
-                        SDL_SetWindowResizable(window, SDL_FALSE);
                         SDL_SetWindowOpacity(window, 1.0f);
+                        SDL_SetWindowBordered(window, SDL_TRUE);
+                        SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
+                        SDL_ShowWindow(window);
                         *state = DEFAULT;
+                        *mstate = MOUSE_DEFAULT;
                     }
                     break;
                 case SDLK_q:
                     if(*state != DEFAULT)
                     {
-                        updateWindowPos();
                         SDL_HideWindow(window);
                         *state = SAVING;
+                        *mstate = MOUSE_DEFAULT;
                     }
                     break;
             }
         }
-    }
+        
+        if(*state == SELECTING)
+        {
+            if(e.type == SDL_MOUSEBUTTONDOWN)
+            {
+                if(*mstate == MOUSE_DEFAULT || *mstate == MOUSE_DONE)
+                    *mstate = MOUSE_DOWN;
+            }
+            else if(e.type == SDL_MOUSEBUTTONUP)
+            {
+                *mstate = MOUSE_UP;
+            }
+        }
+    }   
 }
 
 bool loadImage(const std::string name)
@@ -225,35 +365,50 @@ bool loadImage(const std::string name)
     return true;
 }
 
-void updateWindowPos()
+void updateMousePos()
 {
-    int width, height;
     int x, y;
-    SDL_GetWindowSize(window, &width, &height);
-    SDL_GetWindowPosition(window, &x, &y);
-    windowPositions[0] = x;
-    windowPositions[1] = y;
-    windowPositions[2] = width;
-    windowPositions[3] = height;
+    SDL_GetMouseState(&x, &y);
+    mousePosition[0] = x;
+    mousePosition[1] = y;
 }
 
 // This function is inspired by GarlandlX's answer on:
 // https://www.gamedev.net/forums/topic/315178-hbitmap-to-sdl_surface/
-SDL_Surface *loadSurfaceFromBITMAP(BITMAP *bmp)
+SDL_Surface *loadSurfaceFromScreen(int x, int y, int w, int h)
 {
+    HDC dcScreen = GetDC(NULL);
+    HDC dcTarget = CreateCompatibleDC(dcScreen);
+    // create bitmap info
+    BITMAPINFO bi;
+    memset(&bi.bmiHeader, 0, sizeof(BITMAPINFOHEADER));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    VOID *pvBits;
+    HBITMAP bmpTarget = CreateDIBSection(dcScreen, &bi, DIB_RGB_COLORS, &pvBits, NULL, 0);
+    SelectObject(dcTarget, bmpTarget);
+    BitBlt(dcTarget, 0, 0, w, h, dcScreen, x, y, SRCCOPY);
+
+    BITMAP bmp;
+    GetObject(bmpTarget, sizeof(BITMAP), &bmp);
+
     SDL_Surface *surf = SDL_CreateRGBSurface(SDL_SWSURFACE,
-                                             bmp->bmWidth,
-                                             bmp->bmHeight,
-                                             bmp->bmBitsPixel,
+                                             bmp.bmWidth,
+                                             bmp.bmHeight,
+                                             bmp.bmBitsPixel,
                                              0x000000FF,
                                              0x0000FF00,
                                              0x00FF0000,
                                              0xFF000000);
-    Uint8 *bits = new Uint8[bmp->bmWidthBytes * bmp->bmHeight];
-    memcpy(bits, bmp->bmBits, bmp->bmWidthBytes * bmp->bmHeight);
+    Uint8 *bits = new Uint8[bmp.bmWidthBytes * bmp.bmHeight];
+    memcpy(bits, bmp.bmBits, bmp.bmWidthBytes * bmp.bmHeight);
 
     // reverse BGRA to RGBA
-    for (int i = 0; i < bmp->bmWidthBytes * bmp->bmHeight; i += 4) 
+    for (int i = 0; i < bmp.bmWidthBytes * bmp.bmHeight; i += 4) 
 	{
 		Uint8 tmp;
 		tmp = bits[i];
@@ -262,13 +417,15 @@ SDL_Surface *loadSurfaceFromBITMAP(BITMAP *bmp)
 	}
 
     SDL_LockSurface(surf);
-    memcpy(surf->pixels, bits, bmp->bmWidthBytes * bmp->bmHeight);
+    memcpy(surf->pixels, bits, bmp.bmWidthBytes * bmp.bmHeight);
     SDL_UnlockSurface(surf);
 
     delete [] bits;
 
     SDL_Surface *surface = SDL_ConvertSurfaceFormat(surf, SDL_GetWindowPixelFormat(window), 0);
     SDL_FreeSurface(surf);
+    DeleteDC(dcTarget);
+    ReleaseDC(NULL, dcScreen);
 
     return surface;
 }

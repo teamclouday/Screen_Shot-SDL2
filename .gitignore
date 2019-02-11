@@ -2,3 +2,5 @@
 *.bmp
 # ignore vscode settings
 .vscode/settings.json
+# ignore executable file
+run.exe

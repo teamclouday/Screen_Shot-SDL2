@@ -23,6 +23,12 @@ g++ -O2 -std=c++11 -o run.exe main.o myIcon.res -lgdi32 -lmingw32 -lSDL2main -lS
 
 ------
 
+**Sample Image**  
+![sample.jpg](./Images/sample.jpg)  
+Captured using itself (by opening two of this app)
+
+------
+
 **Additional Infomation**  
 In plain SDL2, it's impossible to capture the system screen. Therefore, I only use SDL2 as a window application tool. For the part of screen capture, I create `MIPMAP` obj from the current screen context, then transformed it into `SDL_Surface` object type. At last, I use the built in function `SDL_SaveBMP` to save the data as bmp file.  
 Taking a screenshot is quite system specific, and quite complicated. There's more to learn

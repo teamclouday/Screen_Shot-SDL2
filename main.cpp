@@ -284,7 +284,15 @@ void saveImage()
     SDL_Delay(50);
     // set window property for displaying
     SDL_SetWindowOpacity(window, 1.0f);
-    SDL_SetWindowSize(window, selectPositions[2], selectPositions[3]);
+    if(selectPositions[2] < (DM.w / 2) && selectPositions[3] < (DM.h / 2))
+    {
+        if(selectPositions[2] > (DM.h / 10) && selectPositions[3] > (DM.h / 10))
+            SDL_SetWindowSize(window, selectPositions[2], selectPositions[3]);
+        else
+            SDL_SetWindowSize(window, selectPositions[2] * 4, selectPositions[3] * 4);
+    }
+    else
+        SDL_SetWindowSize(window, selectPositions[2] * 2 / 3, selectPositions[3] * 2 / 3);
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     SDL_SetWindowBordered(window, SDL_TRUE);
     SDL_SetWindowTitle(window, "Hit any key to continue...");

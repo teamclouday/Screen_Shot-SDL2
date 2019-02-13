@@ -353,7 +353,7 @@ bool displayImage()
     SDL_SetWindowOpacity(window, 1.0f);
     if(selectPositions[2] < (DM.w / 2) && selectPositions[3] < (DM.h / 2))
     {
-        if(selectPositions[2] > (DM.h / 10) && selectPositions[3] > (DM.h / 10))
+        if(selectPositions[2] > (DM.h / 8) && selectPositions[3] > (DM.h / 8))
             SDL_SetWindowSize(window, selectPositions[2], selectPositions[3]);
         else
             SDL_SetWindowSize(window, selectPositions[2] * 4, selectPositions[3] * 4);
@@ -409,7 +409,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
                 // if s is pressed on DEFAULT state, change to SELECTING state
                     if(*state == DEFAULT)
                     {
-                        SDL_SetWindowOpacity(window, 0.3f);
+                        SDL_SetWindowOpacity(window, 0.4f);
                         SDL_SetWindowBordered(window, SDL_FALSE);
                         SDL_SetWindowSize(window, DM.w, DM.h);
                         SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);

@@ -2,10 +2,10 @@
 #include <SDL2/SDL_syswm.h>
 #include <SDL2/SDL_image.h>
 #include <windows.h>
-#include <stdio.h>
+#include <commdlg.h>
 #include <vector>
 #include <string>
-#include <iostream>
+#include <sstream>
 
 // set window properties
 #define WINDOW_TITLE "ScreenShot"
@@ -18,9 +18,10 @@
 #define MAG_WIDTH  100
 #define MAG_HEIGHT 100
 // global variables
-SDL_Texture *image = nullptr;
+std::vector<SDL_Texture *> images(2, nullptr);
 SDL_Window *window = nullptr;
 SDL_Renderer *renderer = nullptr;
+SDL_Surface *final_image = nullptr;
 SDL_DisplayMode DM;
 std::vector<int> mousePosition(2, 0);
 std::vector<int> selectPositions(4, 0);
@@ -43,10 +44,11 @@ enum MouseState
 // functions header
 void switchRenderer(CurrentState *state, MouseState *mstate);
 void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate);
-bool loadImage(const std::string name);
+bool loadImage(const std::string cover, const std::string saving);
 void drawMagnifier();
 void drawSelectRect(MouseState *mstate);
 void saveImage();
+bool displayImage();
 void updateMousePos();
 SDL_Surface *loadSurfaceFromScreen(int x, int y, int w, int h);
 
@@ -55,7 +57,13 @@ int main(int argc, char **argv)
     // Init SDL
     if(SDL_Init(SDL_INIT_VIDEO) < 0)
     {
-        printf("Failed to init SDL!\nSDL_ERROR: %s\n", SDL_GetError());
+        std::stringstream sstr;
+        sstr << "Failed to init SDL!\nSDL_ERROR: " << SDL_GetError();
+        std::string errorMessage = sstr.str();
+        MessageBox(NULL,
+                   (errorMessage.c_str()),
+                   "SDL_Init Error",
+                   MB_ICONERROR | MB_OK);
         return -1;
     }
 
@@ -63,7 +71,13 @@ int main(int argc, char **argv)
     int imageFlags = IMG_INIT_PNG;
     if(!(!IMG_Init(imageFlags) ^ imageFlags))
     {
-        printf("Failed to init IMG!\nIMG_ERROR: %s\n", IMG_GetError());
+        std::stringstream sstr;
+        sstr << "Failed to init IMG!\nIMG_ERROR: " << IMG_GetError();
+        std::string errorMessage = sstr.str();
+        MessageBox(NULL,
+                   (errorMessage.c_str()),
+                   "IMG_Init Error",
+                   MB_ICONERROR | MB_OK);
         return -1;
     }
 
@@ -76,7 +90,13 @@ int main(int argc, char **argv)
                               SDL_WINDOW_SHOWN);
     if(!window)
     {
-        printf("Failed to create SDL_Window!\nSDL_ERROR: %s\n", SDL_GetError());
+        std::stringstream sstr;
+        sstr << "Failed to create SDL_Window!\nSDL_ERROR: " << SDL_GetError();
+        std::string errorMessage = sstr.str();
+        MessageBox(NULL,
+                   (errorMessage.c_str()),
+                   "SDL_Window Error",
+                   MB_ICONERROR | MB_OK);
         IMG_Quit();
         SDL_Quit();
         return -2;
@@ -86,14 +106,20 @@ int main(int argc, char **argv)
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if(!renderer)
     {
-        printf("Failed to create SDL_Renderer!\nSDL_ERROR: %s\n", SDL_GetError());
+        std::stringstream sstr;
+        sstr << "Failed to create SDL_Renderer!\nSDL_ERROR: " << SDL_GetError();
+        std::string errorMessage = sstr.str();
+        MessageBox(NULL,
+                   (errorMessage.c_str()),
+                   "SDL_Renderer Error",
+                   MB_ICONERROR | MB_OK);
         IMG_Quit();
         SDL_Quit();
         return -3;
     }
 
     // load cover image
-    if(!loadImage("cover.png"))
+    if(!loadImage("cover.png", "save.png"))
     {
         IMG_Quit();
         SDL_Quit();
@@ -127,18 +153,36 @@ void switchRenderer(CurrentState *state, MouseState *mstate)
     switch(*state)
     {
         case DEFAULT:
-            SDL_RenderCopy(renderer, image, NULL, NULL);
+        {
+            SDL_RenderCopy(renderer, images[0], NULL, NULL);
             break;
+        }
         case SAVING:
-            saveImage();
+        {
+            bool pass = displayImage();
+            if(pass)
+                saveImage();
+            else
+            {
+                SDL_SetWindowTitle(window, WINDOW_TITLE);
+                SDL_SetWindowOpacity(window, 0.3f);
+                SDL_SetWindowBordered(window, SDL_FALSE);
+                SDL_SetWindowSize(window, DM.w, DM.h);
+                SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+                *state = SELECTING;
+                break;
+            }
             // after saving, automatically change to DEFAULT state
             *state = DEFAULT;
             break;
+        }
         case SELECTING:
+        {
             updateMousePos();
             drawSelectRect(mstate);
             drawMagnifier();
             break;
+        }
     }
     // draw on screen
     SDL_RenderPresent(renderer);
@@ -258,30 +302,49 @@ void drawMagnifier()
 }
 
 // function that saves image after selecting
+// this function is transformed from Microsoft official documents
+// https://docs.microsoft.com/en-us/windows/desktop/dlgbox/using-common-dialog-boxes
 void saveImage()
 {
+    OPENFILENAME ofn;       // common dialog box structure
+    char szFile[256];       // buffer for file name
+
+    // Initialize OPENFILENAME
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFile = szFile;
+    // Set lpstrFile[0] to '\0' so that GetOpenFileName does not 
+    // use the contents of szFile to initialize itself.
+    ofn.lpstrFile[0] = '\0';
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrDefExt = "png";
+    ofn.lpstrFilter = "All\0*.*\0PNG(.png)\0*.png\0JPG(.jpg)\0*.jpg\0BitMap(.bmp)\0*.bmp\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY |OFN_OVERWRITEPROMPT;
+
+    // Display the Save dialog box. 
+    if(GetSaveFileName(&ofn))
+    {
+        const char *filename = (char*)ofn.lpstrFile;
+        SDL_SaveBMP(final_image, filename);
+    }
+}
+
+// function that displays the selected image
+bool displayImage()
+{
+    if(!final_image)
+    {
+        SDL_FreeSurface(final_image);
+    }
     // load image surface
-    SDL_Surface *surface = loadSurfaceFromScreen(selectPositions[0],
+    final_image = loadSurfaceFromScreen(selectPositions[0],
                                                  selectPositions[1],
                                                  selectPositions[2],
                                                  selectPositions[3]);
-    // save image
-    bool done = false;
-    while(!done)
-    {
-        printf("Enter the path and name you want to store:\n");
-        std::string pathname;
-        std::getline(std::cin, pathname);
-        int success = SDL_SaveBMP(surface, pathname.c_str());
-        if(success)
-            printf("Invalid path! Try again!\n");
-        else
-            done = true;
-    }
-    // create texture for displaying
-    SDL_Texture *imageTex = SDL_CreateTextureFromSurface(renderer, surface);
-    SDL_FreeSurface(surface);
-    SDL_Delay(50);
+    SDL_Texture *imgTex = SDL_CreateTextureFromSurface(renderer, final_image);
     // set window property for displaying
     SDL_SetWindowOpacity(window, 1.0f);
     if(selectPositions[2] < (DM.w / 2) && selectPositions[3] < (DM.h / 2))
@@ -295,22 +358,29 @@ void saveImage()
         SDL_SetWindowSize(window, selectPositions[2] * 2 / 3, selectPositions[3] * 2 / 3);
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     SDL_SetWindowBordered(window, SDL_TRUE);
-    SDL_SetWindowTitle(window, "Hit any key to continue...");
+    SDL_SetWindowTitle(window, "Hit R to reselect...");
     SDL_ShowWindow(window);
     // show image on screen
-    SDL_RenderCopy(renderer, imageTex, NULL, NULL);
+    SDL_RenderCopy(renderer, imgTex, NULL, NULL);
     SDL_RenderPresent(renderer);
     // keep displaying until any key is pressed
     SDL_Event e;
     while(e.type != SDL_KEYDOWN)
     {
         SDL_PollEvent(&e);
+        if(e.key.keysym.sym == SDLK_r)
+            return false;
         SDL_Delay(50);
     }
+    SDL_DestroyTexture(imgTex);
     // restore window property
-    SDL_DestroyTexture(imageTex);
     SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
+    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     SDL_SetWindowTitle(window, WINDOW_TITLE);
+    // display the saving image
+    SDL_RenderCopy(renderer, images[1], NULL, NULL);
+    SDL_RenderPresent(renderer);
+    return true;
 }
 
 // function that handle keyboard and mouse events
@@ -382,21 +452,25 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
 }
 
 // function that load image from local storage
-bool loadImage(const std::string name)
+bool loadImage(const std::string cover, const std::string saving)
 {
-    SDL_Surface *loadIMG = IMG_Load(("./Images/" + name).c_str());
-    if(!loadIMG)
+    SDL_Surface *loadIMG1 = IMG_Load(("./Images/" + cover).c_str());
+    SDL_Surface *loadIMG2 = IMG_Load(("./Images/" + saving).c_str());
+    if(!loadIMG1 || !loadIMG2)
     {
-        printf("Failed to load images!\nIMG_ERROR: %s\n", IMG_GetError());
+        std::stringstream sstr;
+        sstr << "Failed to load images!\nIMG_ERROR: " << IMG_GetError();
+        std::string errorMessage = sstr.str();
+        MessageBox(NULL,
+                   (errorMessage.c_str()),
+                   "Load Image Error",
+                   MB_ICONERROR | MB_OK);
         return false;
     }
-    image = SDL_CreateTextureFromSurface(renderer, loadIMG);
-    SDL_FreeSurface(loadIMG);
-    if(!image)
-    {
-        printf("Failed to create image texture!\nIMG_ERROR: %s\n", IMG_GetError());
-        return false;
-    }
+    images[0] = SDL_CreateTextureFromSurface(renderer, loadIMG1);
+    images[1] = SDL_CreateTextureFromSurface(renderer, loadIMG2);
+    SDL_FreeSurface(loadIMG1);
+    SDL_FreeSurface(loadIMG2);
     return true;
 }
 

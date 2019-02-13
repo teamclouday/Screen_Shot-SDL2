@@ -1,9 +1,7 @@
-# ignore test bmp files
-*.bmp
 # ignore vscode settings
 .vscode/settings.json
 # ignore executable file
-run.exe
+*.exe
 # ignore res file
 *.res
 # ignore obj file

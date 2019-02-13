@@ -13,11 +13,12 @@
                 "run.exe",
                 "main.cpp",
                 "-lgdi32",
+                "-lComdlg32",
                 "-lmingw32",
                 "-lSDL2main",
                 "-lSDL2",
                 "-lSDL2_image",
-                "-mconsole",
+                "-mwindows",
                 "&&",
                 "./run"
             ],
@@ -38,11 +39,12 @@
                 "run.exe",
                 "main.cpp",
                 "-lgdi32",
+                "-lComdlg32",
                 "-lmingw32",
                 "-lSDL2main",
                 "-lSDL2",
                 "-lSDL2_image",
-                "-mconsole"
+                "-mconsole", // here for debuging
             ],
             "group": "test"
         }

@@ -372,7 +372,7 @@ bool displayImage()
     while(e.type != SDL_KEYDOWN)
     {
         SDL_PollEvent(&e);
-        if(e.key.keysym.sym == SDLK_r)
+        if(e.key.keysym.sym == SDLK_r || e.key.keysym.sym == SDLK_ESCAPE)
             return false;
         SDL_Delay(50);
     }

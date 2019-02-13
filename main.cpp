@@ -341,9 +341,9 @@ bool displayImage()
     }
     // load image surface
     final_image = loadSurfaceFromScreen(selectPositions[0],
-                                                 selectPositions[1],
-                                                 selectPositions[2],
-                                                 selectPositions[3]);
+                                        selectPositions[1],
+                                        selectPositions[2],
+                                        selectPositions[3]);
     SDL_Texture *imgTex = SDL_CreateTextureFromSurface(renderer, final_image);
     // set window property for displaying
     SDL_SetWindowOpacity(window, 1.0f);

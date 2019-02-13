@@ -6,3 +6,5 @@
 *.res
 # ignore obj file
 *.o
+# ignore profiling file
+*.out

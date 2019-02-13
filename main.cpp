@@ -136,7 +136,7 @@ int main(int argc, char **argv)
     {
         pollEvents(&quit, &state, &mstate);
         switchRenderer(&state, &mstate);
-        SDL_Delay(20);
+        SDL_Delay(10);
     }
     SDL_DestroyWindow(window);
     IMG_Quit();
@@ -423,6 +423,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
                         SDL_SetWindowOpacity(window, 1.0f);
                         SDL_SetWindowBordered(window, SDL_TRUE);
                         SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
+                        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
                         SDL_ShowWindow(window);
                         *state = DEFAULT;
                         *mstate = MOUSE_DEFAULT;

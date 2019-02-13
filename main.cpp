@@ -170,10 +170,14 @@ void switchRenderer(CurrentState *state, MouseState *mstate)
                 SDL_SetWindowSize(window, DM.w, DM.h);
                 SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
                 *state = SELECTING;
+                SDL_FreeSurface(final_image);
+                final_image = nullptr;
                 break;
             }
             // after saving, automatically change to DEFAULT state
             *state = DEFAULT;
+            SDL_FreeSurface(final_image);
+            final_image = nullptr;
             break;
         }
         case SELECTING:
@@ -426,7 +430,7 @@ void pollEvents(unsigned char *quit, CurrentState *state, MouseState *mstate)
                     break;
                 case SDLK_q:
                 // if q is pressed (and not in DEFAULT state), change to SAVING state
-                    if(*state != DEFAULT)
+                    if(*state != DEFAULT && *mstate == MOUSE_DONE)
                     {
                         SDL_HideWindow(window);
                         *state = SAVING;
@@ -536,7 +540,8 @@ SDL_Surface *loadSurfaceFromScreen(int x, int y, int w, int h)
     SDL_Surface *surface = SDL_ConvertSurfaceFormat(surf, SDL_GetWindowPixelFormat(window), 0);
     SDL_FreeSurface(surf);
     DeleteDC(dcTarget);
-    ReleaseDC(NULL, dcScreen);
+    DeleteDC(dcScreen);
+    DeleteObject(bmpTarget);
 
     return surface;
 }
